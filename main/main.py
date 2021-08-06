@@ -32,7 +32,7 @@ class Node:
     quadrant which has side = 1.
     '''
     self.side = 1.
-    # Defines the relativew position w.r.t. the 0th-order 
+    # Defines the relative position w.r.t. the 0th-order 
     # quadrant. Note that we use copy in order to not alter 
     # the position attribute.
     self.relative_position = self.position.copy()
