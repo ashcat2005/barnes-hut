@@ -2,13 +2,14 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import animation
 from copy import deepcopy
 
 class Node:
   '''
   Creation of a node.
   '''
-  def __init__(self, mass, position, velocity):
+  def __init__(self, mass, position, velocity, identification):
     '''
     Inizialization of the object with mass and
     position coordinates (x,y)
@@ -22,6 +23,9 @@ class Node:
     self.position = position
     self.velocity=velocity
     self.accel= [0,0]
+    
+    #Keeps track of each individual mass
+    self.id=identification
     
     # Mass product position. Usefull for the center of mass
     self.mr = mass*position 
@@ -170,6 +174,14 @@ def Verlet(h, node_0, s0):
     v1[1] = (q1[1] - s0[1])/(2*h)
     return q1, v1
 
+def animate(i):
+    pt0.set_data(Position[0][0][i],Position[0][1][i]) 
+    pt1.set_data(Position[1][0][i],Position[1][1][i]) 
+    pt2.set_data(Position[2][0][i],Position[2][1][i]) 
+    pt3.set_data(Position[3][0][i],Position[3][1][i]) 
+    pt4.set_data(Position[4][0][i],Position[4][1][i]) 
+    return (pt0, pt1, pt2, pt3, pt4,)
+
 # N-BODIES SYSTEM DEFINITION #
 # We will create a system with N-particles localized within a
 # certain radius r_init centered at the point center.
@@ -179,7 +191,7 @@ G = 4*np.pi**2  # Gravitational constant
 theta=0.5       # Condition to use the center of mass. (size/distance)
 
 # Time Grid
-dt = 1.E-4 # Time-step.
+dt = 1.E-3 # Time-step.
 n = 10000 # Number of time-iterations.
 
 """Creation of the initial configuration"""
@@ -190,10 +202,10 @@ r_init = 0.5
 center = np.array([0.5, 0.5])
 
 # Maximum initial velocity of the bodies.
-v_init_max = 0.1 
+v_init_max =10.1
 
 # We will consider N-bodies with equal masses.
-N = 5 # Number of bodies
+N = 5                    # Number of bodies before purge
 masses = np.ones(N)
 
 # Creation of the N-bodies.
@@ -211,6 +223,7 @@ r_c = np.linalg.norm(init_pos_c, axis=1)
 bodies = [] # List of bodies in the system
 
 # Loop for creating the bodies
+j=0
 for i in range(N):
   # Only the bodies inside a circle of radius r_init are considered.
   if r_c[i] < r_init:
@@ -218,7 +231,8 @@ for i in range(N):
     init_vel = np.array([-init_pos_c[i,1], init_pos_c[i,0]])*\
                v_init_max*(r_c[i]/r_init)
     # Adding the body to the list
-    bodies.append(Node(masses[i], init_pos[i], init_vel))
+    bodies.append(Node(masses[i], init_pos[i], init_vel, j))
+    j+=1
 
 print('Total number of bodies: ', len(bodies))
 
@@ -236,31 +250,53 @@ for body in bodies:
 bodies=[]
 Pointer(root_node, root_node, bodies)
 
-#Graph
-plt.figure(figsize=(8,8))
-for body in bodies:
-    plt.scatter(body.position[0], body.position[1], color='crimson', marker='.')
-    
-plt.xlim(0,1)
-plt.ylim(0,1)
-plt.xlabel(r'$x$')
-plt.ylabel(r'$y$')
-plt.show()
+Position=[[[0],[0]] for i in range(len(bodies))] #Will contain the postion of each particle through time
 
 #Backward Euler step to begin
 for body in bodies:    
     S = np.zeros(2)
     S[0] = body.position[0] - dt*body.velocity[0] + 0.5*body.accel[0]*dt**2
     S[1] = body.position[1] - dt*body.velocity[1] + 0.5*body.accel[1]*dt**2
+    Position[body.id][0][0]=S[0]
+    Position[body.id][1][0]=S[1]
     #Verlet
     body.position, body.velocity = Verlet(dt, body, S)
+ 
+"""Main Loop"""    
+ 
+for t in range(2,50):
+    root_node = None
+    for body in bodies:
+        body.reset_localization()
+        root_node = add_body(body, root_node)
+    bodies=[]
+    Pointer(root_node, root_node, bodies)
+    #Graph each step
+    """
+    plt.figure(figsize=(8,8))
+    for body in bodies:
+        plt.scatter(body.position[0], body.position[1], color='crimson', marker='.')
+    plt.xlim(0,1)
+    plt.ylim(0,1)
+    plt.show()
+    """
+    for body in bodies:
+        body.reset_localization()
+        body.position, body.velocity = Verlet(dt,body,[Position[body.id][0][t-2],Position[body.id][1][t-2]])
+        Position[body.id][0].append(body.position[0])
+        Position[body.id][1].append(body.position[1])
+        
+"""Animation creation"""
+# create a figure and axes
+fig, ax = plt.subplots(figsize=(7,7))
+ax.set_xlim(0,1)
+ax.set_ylim(0,1)
 
-plt.figure(figsize=(8,8))
-for body in bodies:
-    plt.scatter(body.position[0], body.position[1], color='crimson', marker='.')
+# Defines the characteristics of the ploted point (size=5)
+pt0, = ax.plot([], [], 'bo', ms=3)
+pt1, = ax.plot([], [], 'go', ms=3)
+pt2, = ax.plot([], [], 'ro', ms=3)
+pt3, = ax.plot([], [], 'ko', ms=3)
+pt4, = ax.plot([], [], 'bo', ms=3)
 
-plt.xlim(0,1)
-plt.ylim(0,1)
-plt.xlabel(r'$x$')
-plt.ylabel(r'$y$')
-plt.show()
+anim = animation.FuncAnimation(fig, animate, frames=100, interval=100,blit=True)
