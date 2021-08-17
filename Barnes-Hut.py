@@ -175,12 +175,10 @@ def Verlet(h, node_0, s0):
     return q1, v1
 
 def animate(i):
-    pt0.set_data(Position[0][0][i],Position[0][1][i]) 
-    pt1.set_data(Position[1][0][i],Position[1][1][i]) 
-    pt2.set_data(Position[2][0][i],Position[2][1][i]) 
-    pt3.set_data(Position[3][0][i],Position[3][1][i]) 
-    pt4.set_data(Position[4][0][i],Position[4][1][i]) 
-    return (pt0, pt1, pt2, pt3, pt4,)
+    """perform animation step"""
+    particles.set_data(Location[i][:,0], Location[i][:,1])
+    particles.set_markersize(3)
+    return particles,
 
 # N-BODIES SYSTEM DEFINITION #
 # We will create a system with N-particles localized within a
@@ -234,10 +232,10 @@ for i in range(N):
     bodies.append(Node(masses[i], init_pos[i], init_vel, j))
     j+=1
 
+n=len(bodies)
 print('Total number of bodies: ', len(bodies))
 
 """First BHTree and Integration"""
-
 ## BHTree construction
 root_node = None
 
@@ -249,54 +247,46 @@ for body in bodies:
 # and save it in a list
 bodies=[]
 Pointer(root_node, root_node, bodies)
-
-Position=[[[0],[0]] for i in range(len(bodies))] #Will contain the postion of each particle through time
-
+#Saves the position of each particle as an array for each step of time
+Location=[]
+step0=np.zeros((n,2))
+step1=np.zeros((n,2))
 #Backward Euler step to begin
 for body in bodies:    
     S = np.zeros(2)
     S[0] = body.position[0] - dt*body.velocity[0] + 0.5*body.accel[0]*dt**2
     S[1] = body.position[1] - dt*body.velocity[1] + 0.5*body.accel[1]*dt**2
-    Position[body.id][0][0]=S[0]
-    Position[body.id][1][0]=S[1]
+    step0[body.id,:]=S
+    step1[body.id,:]=body.position
     #Verlet
     body.position, body.velocity = Verlet(dt, body, S)
- 
+Location.append(step0) 
+Location.append(step1) 
+
 """Main Loop"""    
- 
-for t in range(2,50):
+for t in range(1,25):
+    #Tree construction
     root_node = None
     for body in bodies:
         body.reset_localization()
         root_node = add_body(body, root_node)
+    #Acceleration
     bodies=[]
     Pointer(root_node, root_node, bodies)
-    #Graph each step
-    """
-    plt.figure(figsize=(8,8))
-    for body in bodies:
-        plt.scatter(body.position[0], body.position[1], color='crimson', marker='.')
-    plt.xlim(0,1)
-    plt.ylim(0,1)
-    plt.show()
-    """
+    #Time Integration
+    step=np.zeros((n,2))
     for body in bodies:
         body.reset_localization()
-        body.position, body.velocity = Verlet(dt,body,[Position[body.id][0][t-2],Position[body.id][1][t-2]])
-        Position[body.id][0].append(body.position[0])
-        Position[body.id][1].append(body.position[1])
+        body.position, body.velocity = Verlet(dt,body,[Location[t-1][body.id,0],Location[t-1][body.id,1]])
+        step[body.id,:]=body.position
+    #Saving data    
+    Location.append(step)
         
 """Animation creation"""
-# create a figure and axes
-fig, ax = plt.subplots(figsize=(7,7))
-ax.set_xlim(0,1)
-ax.set_ylim(0,1)
-
-# Defines the characteristics of the ploted point (size=5)
-pt0, = ax.plot([], [], 'bo', ms=3)
-pt1, = ax.plot([], [], 'go', ms=3)
-pt2, = ax.plot([], [], 'ro', ms=3)
-pt3, = ax.plot([], [], 'ko', ms=3)
-pt4, = ax.plot([], [], 'bo', ms=3)
-
-anim = animation.FuncAnimation(fig, animate, frames=100, interval=100,blit=True)
+#Figure and Axes
+fig = plt.figure()
+ax = fig.add_subplot(aspect='equal', xlim=(0, 1), ylim=(0, 1))
+#Holds the locations of the particles
+particles, = ax.plot([], [], 'ro')
+#Amimmation Function
+anim = animation.FuncAnimation(fig, animate, frames=100,interval=100, blit=True)
