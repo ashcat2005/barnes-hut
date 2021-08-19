@@ -175,12 +175,12 @@ def Verlet(h, node_0, s0):
 # certain radius r_init centered at the point center.
 # The level-0 quadrant corresponds to a square of side = 1.
 
-G = 4*np.pi**2  # Gravitational constant
+G = 4.e-4  # Gravitational constant
 theta=0.5       # Condition to use the center of mass. (size/distance)
 
 # Time Grid
 dt = 1.E-4 # Time-step.
-n = 10000 # Number of time-iterations.
+n = 500 # Number of time-iterations.
 
 """Creation of the initial configuration"""
 
@@ -193,7 +193,7 @@ center = np.array([0.5, 0.5])
 v_init_max = 0.1 
 
 # We will consider N-bodies with equal masses.
-N = 5 # Number of bodies
+N = 50 # Number of bodies
 masses = np.ones(N)
 
 # Creation of the N-bodies.
@@ -214,7 +214,7 @@ bodies = [] # List of bodies in the system
 for i in range(N):
   # Only the bodies inside a circle of radius r_init are considered.
   if r_c[i] < r_init:
-    # Initial velocity, proportional to the disctance from the center
+    # Initial velocity, proportional to the distance from the center
     init_vel = np.array([-init_pos_c[i,1], init_pos_c[i,0]])*\
                v_init_max*(r_c[i]/r_init)
     # Adding the body to the list
@@ -254,6 +254,7 @@ for body in bodies:
     S[1] = body.position[1] - dt*body.velocity[1] + 0.5*body.accel[1]*dt**2
     #Verlet
     body.position, body.velocity = Verlet(dt, body, S)
+
 
 plt.figure(figsize=(8,8))
 for body in bodies:
