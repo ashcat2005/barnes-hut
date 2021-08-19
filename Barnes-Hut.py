@@ -2,13 +2,14 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import animation
 from copy import deepcopy
 
 class Node:
   '''
   Creation of a node.
   '''
-  def __init__(self, mass, position, velocity):
+  def __init__(self, mass, position, velocity, identification):
     '''
     Inizialization of the object with mass and
     position coordinates (x,y)
@@ -22,6 +23,9 @@ class Node:
     self.position = position
     self.velocity=velocity
     self.accel= [0,0]
+    
+    #Keeps track of each individual mass
+    self.id=identification
     
     # Mass product position. Usefull for the center of mass
     self.mr = mass*position 
@@ -170,6 +174,12 @@ def Verlet(h, node_0, s0):
     v1[1] = (q1[1] - s0[1])/(2*h)
     return q1, v1
 
+def animate(i):
+    """perform animation step"""
+    particles.set_data(Location[i][:,0], Location[i][:,1])
+    particles.set_markersize(3)
+    return particles,
+
 # N-BODIES SYSTEM DEFINITION #
 # We will create a system with N-particles localized within a
 # certain radius r_init centered at the point center.
@@ -179,8 +189,13 @@ G = 4.e-4  # Gravitational constant
 theta=0.5       # Condition to use the center of mass. (size/distance)
 
 # Time Grid
+<<<<<<< HEAD
 dt = 1.E-4 # Time-step.
 n = 500 # Number of time-iterations.
+=======
+dt = 1.E-3 # Time-step.
+n = 10000 # Number of time-iterations.
+>>>>>>> d777c6cf42593d4cda7dfefe286475ef27ca09f6
 
 """Creation of the initial configuration"""
 
@@ -190,10 +205,14 @@ r_init = 0.5
 center = np.array([0.5, 0.5])
 
 # Maximum initial velocity of the bodies.
-v_init_max = 0.1 
+v_init_max =10.1
 
 # We will consider N-bodies with equal masses.
+<<<<<<< HEAD
 N = 50 # Number of bodies
+=======
+N = 5                    # Number of bodies before purge
+>>>>>>> d777c6cf42593d4cda7dfefe286475ef27ca09f6
 masses = np.ones(N)
 
 # Creation of the N-bodies.
@@ -211,6 +230,7 @@ r_c = np.linalg.norm(init_pos_c, axis=1)
 bodies = [] # List of bodies in the system
 
 # Loop for creating the bodies
+j=0
 for i in range(N):
   # Only the bodies inside a circle of radius r_init are considered.
   if r_c[i] < r_init:
@@ -218,12 +238,13 @@ for i in range(N):
     init_vel = np.array([-init_pos_c[i,1], init_pos_c[i,0]])*\
                v_init_max*(r_c[i]/r_init)
     # Adding the body to the list
-    bodies.append(Node(masses[i], init_pos[i], init_vel))
+    bodies.append(Node(masses[i], init_pos[i], init_vel, j))
+    j+=1
 
+n=len(bodies)
 print('Total number of bodies: ', len(bodies))
 
 """First BHTree and Integration"""
-
 ## BHTree construction
 root_node = None
 
@@ -235,26 +256,23 @@ for body in bodies:
 # and save it in a list
 bodies=[]
 Pointer(root_node, root_node, bodies)
-
-#Graph
-plt.figure(figsize=(8,8))
-for body in bodies:
-    plt.scatter(body.position[0], body.position[1], color='crimson', marker='.')
-    
-plt.xlim(0,1)
-plt.ylim(0,1)
-plt.xlabel(r'$x$')
-plt.ylabel(r'$y$')
-plt.show()
-
+#Saves the position of each particle as an array for each step of time
+Location=[]
+step0=np.zeros((n,2))
+step1=np.zeros((n,2))
 #Backward Euler step to begin
 for body in bodies:    
     S = np.zeros(2)
     S[0] = body.position[0] - dt*body.velocity[0] + 0.5*body.accel[0]*dt**2
     S[1] = body.position[1] - dt*body.velocity[1] + 0.5*body.accel[1]*dt**2
+    step0[body.id,:]=S
+    step1[body.id,:]=body.position
     #Verlet
     body.position, body.velocity = Verlet(dt, body, S)
+Location.append(step0) 
+Location.append(step1) 
 
+<<<<<<< HEAD
 
 plt.figure(figsize=(8,8))
 for body in bodies:
@@ -265,3 +283,32 @@ plt.ylim(0,1)
 plt.xlabel(r'$x$')
 plt.ylabel(r'$y$')
 plt.show()
+=======
+"""Main Loop"""    
+for t in range(1,25):
+    #Tree construction
+    root_node = None
+    for body in bodies:
+        body.reset_localization()
+        root_node = add_body(body, root_node)
+    #Acceleration
+    bodies=[]
+    Pointer(root_node, root_node, bodies)
+    #Time Integration
+    step=np.zeros((n,2))
+    for body in bodies:
+        body.reset_localization()
+        body.position, body.velocity = Verlet(dt,body,[Location[t-1][body.id,0],Location[t-1][body.id,1]])
+        step[body.id,:]=body.position
+    #Saving data    
+    Location.append(step)
+        
+"""Animation creation"""
+#Figure and Axes
+fig = plt.figure()
+ax = fig.add_subplot(aspect='equal', xlim=(0, 1), ylim=(0, 1))
+#Holds the locations of the particles
+particles, = ax.plot([], [], 'ro')
+#Amimmation Function
+anim = animation.FuncAnimation(fig, animate, frames=100,interval=100, blit=True)
+>>>>>>> d777c6cf42593d4cda7dfefe286475ef27ca09f6
