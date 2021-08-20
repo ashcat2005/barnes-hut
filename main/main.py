@@ -18,7 +18,7 @@ BHmomentum = array([0.,0.,0.]) # Momentum of the SBH
 ini_radius = 10. #kpc
 
 # Number of time-iterations executed by the program.
-n = 20000
+n = 50000
 
 # Frequency at which .PNG images are written.
 img_step = 250
@@ -27,7 +27,7 @@ img_step = 250
 image_folder = 'images/'
 
 # Name of the generated video
-video_name = 'my_video.mp4'
+video_name = '200bodies50000.mp4'
 
 
 
