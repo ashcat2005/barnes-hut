@@ -1,8 +1,10 @@
 # Barnes-Hut Algorithm
 
 from copy import deepcopy
-from numpy import array, ones, empty, random, sqrt
+from numpy import array, ones, empty, random, sqrt, exp, pi, sin, cos
 from numpy.linalg import norm
+import scipy.integrate as integrate
+from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from mpl_toolkits.mplot3d import Axes3D
@@ -77,9 +79,6 @@ class Node:
             self.relative_position[i] -= 1.0
         return octant
 
-
-
-
 def add(body, node):
     '''
     Defines the octo-tree by introducing a body and locating it
@@ -113,13 +112,11 @@ def add(body, node):
         new_node.child[octant] = add(body, new_node.child[octant])
     return new_node
 
-
 def distance_between(node1, node2):
     '''
     Returns the distance between node1 and node2.
     '''
     return norm(node1.position() - node2.position())
-
 
 def gravitational_force(node1, node2):
     '''
@@ -136,7 +133,6 @@ def gravitational_force(node1, node2):
     else:
         # Gravitational force
         return G*node1.m*node2.m*(node1.position() - node2.position())/d**3
-
 
 def force_on(body, node, theta):
     '''
@@ -157,7 +153,6 @@ def force_on(body, node, theta):
 
     # 3. Otherwise, run the procedure recursively on each child.
     return sum(force_on(body, c, theta) for c in node.child if c is not None)
-
 
 def verlet(bodies, root, theta, dt):
     '''
@@ -180,7 +175,7 @@ def random_generate(N, max_mass, BHM, center, ini_radius):
     # only N-1 bodies for the system
     K = 2*N
     random.seed(413)
-    masses = empty([N-1,3])
+    masses = empty([N-1])
     positions = empty([N-1,3])
     momenta = empty([N-1,3])
     # Random masses between 1 solar mass and max_mass solar masses
@@ -189,7 +184,7 @@ def random_generate(N, max_mass, BHM, center, ini_radius):
     # a side of length = 2*ini_radius.
     posx = random.random(K) *2.*ini_radius + center[0]-ini_radius
     posy = random.random(K) *2.*ini_radius + center[1]-ini_radius
-    posz = random.random(K) *2.*ini_radius + center[2]-ini_radius
+    posz = random.random(K) *2.*ini_radius*0 + center[2]-ini_radius*0
     i=0
     j=0
     #Loop until complete the random N-1 bodies or use the K generated bodies
@@ -206,7 +201,68 @@ def random_generate(N, max_mass, BHM, center, ini_radius):
             j+=1
         i+=1
     return masses, positions, momenta
-    
+
+def func(x,Distribution,Point): 
+    """
+    Equation that follows the point of the wanted distribution that matches the 
+    random one of a uniform distribution
+    """
+    return integrate.quad(Distribution,0,x)[0]-Point
+
+def initial_configuration(N, max_mass, BHM, center, ini_radius):
+    '''
+    Version 1.0:
+    Use a radial distrubution of masses proportional to the brightness surface
+    distributation to create a plain Bulb and Disk resembling an spiral galaxy
+    (or that's the idea :v)
+    Returns
+    - Masses
+    - Positions
+    - Momentum (Based on a Keplerian velocity)
+    '''
+    # We will generate N random particles 
+    positions = empty([N,3])
+    momenta = empty([N,3])
+    # Random masses between 1 solar mass and max_mass solar masses
+    masses = random.random(N)*(max_mass-1.) + 1.
+    # r- initializec acording to a distribution, gamma- initialized ramdomly
+    #Parameters of the model of density
+    initial_density=.1
+    const_bulb=.3
+    const_disc=.8
+    bulb_radius=0.2 
+    #Model of density normalized
+    f1 = lambda x: initial_density*exp(-x**(1/4)/const_bulb)        #Bulb
+    f2 = lambda x: f1(bulb_radius)*exp(-(x-bulb_radius)/const_disc) #Disc
+    f = lambda x:  f1(x) if x<bulb_radius else f2(x)                #Piecewise 
+    norm = integrate.quad(f,0,1)[0]                                  
+    uf=lambda x: f(x)/norm                                          #Density function with integral=1
+    #Uniform distribution to get random points as normal
+    random.seed(413)
+    Uniform=random.random(N)
+    #Random angle generation
+    gamma=random.random(N)*2*pi
+    #Empty array for the points mapped from the uniform distribution
+    Map=empty(N)
+    #Parameters of the galaxy plane orientation 
+    beta=2*pi/5 #Inclination
+    alpha=0
+    for i in range(N):
+        #Calls the function that maps the ramdom points to the wanted distribution for the radius 
+        Map[i]=fsolve(func,.5,args=(uf,Uniform[i]))*ini_radius
+        #Change to cartesian coordinates
+        positions[i][0] = Map[i]*(cos(gamma[i])*cos(alpha)+
+                                  sin(gamma[i])*cos(beta)*sin(alpha)) + center[0]
+        positions[i][1] = Map[i]*(sin(gamma[i])*cos(beta)*cos(alpha)-
+                                  cos(gamma[i])*sin(alpha))+ center[1]
+        positions[i][2] = Map[i]*sin(gamma[i])*sin(beta) + center[2]
+        # We use the Keplerina velocity to define the momentum in the plain of the disc 
+        Kep_v = sqrt(G*BHM/Map[i]) # Keplerian velocity
+        vec_mom=array([-Map[i]*(sin(gamma[i])*cos(alpha)-cos(gamma[i])*cos(beta)*sin(alpha)),
+                       Map[i]*(cos(gamma[i])*cos(beta)*cos(alpha)+sin(gamma[i])*sin(alpha)), 
+                       Map[i]*cos(gamma[i])*sin(beta)])/Map[i]
+        momenta[i] = masses[i]*Kep_v*vec_mom
+    return masses, positions, momenta
     
 #def system_init(N, masses, postions, momenta, BHM, center, BHmomentum, ini_radius):
 def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius):
@@ -217,12 +273,11 @@ def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius):
     '''
     bodies = []
     bodies.append(Node(BHM, position=center, momentum=BHmomentum))
-    masses, positions, momenta = random_generate(N, max_mass, BHM, center, ini_radius)
+    #masses, positions, momenta = random_generate(N, max_mass, BHM, center, ini_radius)
+    masses, positions, momenta = initial_configuration(N, max_mass, BHM, center, ini_radius)
     for i in range(N-1):
        bodies.append(Node(masses[i], positions[i], momenta[i]))
     return bodies
-
-
 
 def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', video_name='my_video.mp4'):
     '''
@@ -280,19 +335,19 @@ def plot_bodies(bodies, i, lim_inf, lim_sup, image_folder='images/'):
     plt.gcf().savefig(image_folder+'bodies3D_{0:06}.png'.format(i))
     plt.close()
 
-
+""" 
 def create_video(image_folder='images/', video_name='my_video.mp4'):
     '''
     Creates a .mp4 video using the stored files images
     '''
     from os import listdir
+    #from os import environ
+    #environ["IMAGEIO_FFMPEG_EXE"] = "/Users/beyonder88/Downloads/ffmpeg"
     import moviepy.video.io.ImageSequenceClip
     fps = 15
     image_files = [image_folder+img for img in sorted(listdir(image_folder)) if img.endswith(".png")]
     clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
     clip.write_videofile(video_name)
-
-
 
 def create_avi_video(image_folder='images/', video_name = 'video.avi'):
     '''
@@ -309,12 +364,8 @@ def create_avi_video(image_folder='images/', video_name = 'video.avi'):
         video.write(cv2.imread(join(image_folder, image)))
     cv2.destroyAllWindows()
     video.release()
-
-
-
-
-
-
+"""
+"""
 if __name__=="__main__":
     '''
     Example of a randomly generated N-body system to be evolved using
@@ -343,4 +394,4 @@ if __name__=="__main__":
     bodies = system_init(N, max_mass, BHM, center, BHmomentum, ini_radius)
     print('Total number of bodies: ', len(bodies))
     evolve(bodies, n, center, ini_radius, img_step, image_folder, video_name)
-    create_video(image_folder, video_name)
+    create_video(image_folder, video_name)"""
