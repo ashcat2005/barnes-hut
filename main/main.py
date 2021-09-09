@@ -2,9 +2,8 @@ from common import *
 
 ######### MAIN PROGRAM ########################################################
 
-# Number of bodies (the actual number is smaller, because all bodies
-# outside the initial radius are removed).
-N = 1500
+# Number of bodies (may be smaller according to the distribution chosen).
+N = 1000
 
 # Mass of the N bodies.
 max_mass = 50. # Solar masses

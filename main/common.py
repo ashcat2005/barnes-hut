@@ -1,7 +1,7 @@
 # Barnes-Hut Algorithm
 
 from copy import deepcopy
-from numpy import array, ones, empty, random, sqrt, exp, pi, sin, cos
+from numpy import array, ones, empty, random, sqrt, exp, pi, sin, cos, arctan
 from numpy.linalg import norm
 import scipy.integrate as integrate
 from scipy.optimize import fsolve
@@ -209,12 +209,11 @@ def func(x,Distribution,Point):
     """
     return integrate.quad(Distribution,0,x)[0]-Point
 
-def initial_configuration(N, max_mass, BHM, center, ini_radius):
+def spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta):
     '''
-    Version 1.0:
+    Version 1.1:
     Use a radial distrubution of masses proportional to the brightness surface
     distributation to create a plain Bulb and Disk resembling an spiral galaxy
-    (or that's the idea :v)
     Returns
     - Masses
     - Positions
@@ -230,7 +229,8 @@ def initial_configuration(N, max_mass, BHM, center, ini_radius):
     initial_density=.1
     const_bulb=.3
     const_disc=.8
-    bulb_radius=0.2 
+    bulb_radius=0.2     #according to the initial radius 
+    bulb_hight=3/20     #according to the initial radius 
     #Model of density normalized
     f1 = lambda x: initial_density*exp(-x**(1/4)/const_bulb)        #Bulb
     f2 = lambda x: f1(bulb_radius)*exp(-(x-bulb_radius)/const_disc) #Disc
@@ -244,26 +244,64 @@ def initial_configuration(N, max_mass, BHM, center, ini_radius):
     gamma=random.random(N)*2*pi
     #Empty array for the points mapped from the uniform distribution
     Map=empty(N)
-    #Parameters of the galaxy plane orientation 
-    beta=2*pi/5 #Inclination
-    alpha=0
+    #Noise in the perpendicular direction in order to create the bulb and the width of the disc
+    random.seed(1)
+    w_noise=(random.random(N)*2-1) 
+    width_disc=1/20*ini_radius
+    Rad=empty(N)
+    phi=empty(N)
+    a=(bulb_radius**2)/(1-(bulb_hight/width_disc)**2)*ini_radius**2
     for i in range(N):
         #Calls the function that maps the ramdom points to the wanted distribution for the radius 
         Map[i]=fsolve(func,.5,args=(uf,Uniform[i]))*ini_radius
+        if Map[i]<0:
+            Map[i]=ini_radius*Uniform[i]
+        #Correction of the radius and angle according to the width of the disc
+        if Map[i]>0.2*ini_radius:
+            Width=w_noise[i]*width_disc
+        else:
+            Width=w_noise[i]*bulb_hight*sqrt(1-(Rad[i]**2)/a)
+        Rad[i]=sqrt(Map[i]**2+Width**2)
+        phi[i]=arctan(Width/Map[i])
         #Change to cartesian coordinates
-        positions[i][0] = Map[i]*(cos(gamma[i])*cos(alpha)+
-                                  sin(gamma[i])*cos(beta)*sin(alpha)) + center[0]
-        positions[i][1] = Map[i]*(sin(gamma[i])*cos(beta)*cos(alpha)-
+        positions[i][0] = Rad[i]*(cos(gamma[i])*cos(alpha)+
+                                  sin(gamma[i])*cos(beta+phi[i])*sin(alpha)) + center[0]
+        positions[i][1] = Rad[i]*(sin(gamma[i])*cos(beta+phi[i])*cos(alpha)-
                                   cos(gamma[i])*sin(alpha))+ center[1]
-        positions[i][2] = Map[i]*sin(gamma[i])*sin(beta) + center[2]
+        positions[i][2] = Rad[i]*sin(gamma[i])*sin(beta+phi[i]) + center[2]
         # We use the Keplerina velocity to define the momentum in the plain of the disc 
         Kep_v = sqrt(G*BHM/Map[i]) # Keplerian velocity
         vec_mom=array([-Map[i]*(sin(gamma[i])*cos(alpha)-cos(gamma[i])*cos(beta)*sin(alpha)),
                        Map[i]*(cos(gamma[i])*cos(beta)*cos(alpha)+sin(gamma[i])*sin(alpha)), 
-                       Map[i]*cos(gamma[i])*sin(beta)])/Map[i]
+                       Map[i]*cos(gamma[i])*sin(beta)])/Map[i]  #unit vector for direction
         momenta[i] = masses[i]*Kep_v*vec_mom
     return masses, positions, momenta
-    
+
+def second_galaxy(bodies):
+    """
+    Creation of a secundary galaxy to simukate the merge of to galaxies
+    """
+    #BlackHole in teh center of the secondary galaxy
+    BHM_2 = 1.e6                        # Solar masses
+    center_2 = array([30.0,30.0,0])   # Location of the SBH
+    BHmomentum_2 = array([-5000000,0.,0.])    # Momentum of the SBH
+    #Number of bodies
+    N_2=100
+    #Mass of the N bodies
+    max_mass_2= 50.                     # Solar masses
+    # Initial radius of the distribution
+    ini_radius_2 = 9. #kpc
+    #Parameters of the galaxy plane orientation 
+    beta_2=pi/5         #Inclination
+    alpha_2=0           #Angle in the plain x,y
+    #masses_2, positions_2, momenta_2 = spiral_galaxy(N_2, max_mass_2, BHM_2, center_2, 
+    #                                                 ini_radius_2,alpha_2,beta_2)
+    #momenta_2=momenta_2+BHmomentum_2
+    bodies.append(Node(BHM_2, position=center_2, momentum=BHmomentum_2))
+    #for i in range(N_2):
+     #  bodies.append(Node(masses_2[i], positions_2[i], momenta_2[i]))
+    return bodies
+  
 #def system_init(N, masses, postions, momenta, BHM, center, BHmomentum, ini_radius):
 def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius):
     '''
@@ -274,11 +312,17 @@ def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius):
     bodies = []
     bodies.append(Node(BHM, position=center, momentum=BHmomentum))
     #masses, positions, momenta = random_generate(N, max_mass, BHM, center, ini_radius)
-    masses, positions, momenta = initial_configuration(N, max_mass, BHM, center, ini_radius)
+
+    #Parameters of the galaxy plane orientation 
+    beta=0      #Inclination
+    alpha=0     #Angle in the plain x,y
+    
+    masses, positions, momenta = spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta)
     for i in range(N-1):
        bodies.append(Node(masses[i], positions[i], momenta[i]))
+    #bodies=second_galaxy(bodies)
     return bodies
-
+    
 def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', video_name='my_video.mp4'):
     '''
     This function evolves the system in time using the Verlet algorithm and the Barnes-Hut octo-tree
@@ -300,7 +344,6 @@ def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', vide
         if i%img_step==0:
             print("Writing image at time {0}".format(i))
             plot_bodies(bodies, i//img_step, lim_inf, lim_sup, image_folder)
-
 
 def plot_bodies(bodies, i, lim_inf, lim_sup, image_folder='images/'):
     '''
