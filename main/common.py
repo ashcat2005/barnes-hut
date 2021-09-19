@@ -162,6 +162,24 @@ def verlet(bodies, root, theta, dt):
         force = force_on(body, root, theta)
         body.momentum += force*dt
         body.m_pos += body.momentum*dt
+        
+def PEFRL(bodies, root, theta, dt):
+    '''
+    PEFRL method for time evolution.
+    '''
+    epsilon=0.1786178958448091
+    lannnda=-0.2123418310626054
+    xsi=-0.06626458266981849
+    for body in bodies:
+        body.m_pos += epsilon*body.momentum*dt
+        body.momentum += .5*(1-2*lannnda)*dt*force_on(body, root, theta)
+        body.m_pos += xsi*body.momentum*dt
+        body.momentum += lannnda*dt*force_on(body, root, theta)
+        body.m_pos += (1-2*(xsi*epsilon))*body.momentum*dt
+        body.momentum += lannnda*dt*force_on(body, root, theta)
+        body.m_pos += xsi*body.momentum*dt
+        body.momentum += .5*(1-2*lannnda)*dt*force_on(body, root, theta)
+        body.m_pos += epsilon*body.momentum*dt
 
 def random_generate(N, max_mass, BHM, center, ini_radius):
     '''
@@ -279,12 +297,13 @@ def spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta):
 
 def second_galaxy(bodies):
     """
-    Creation of a secundary galaxy to simukate the merge of to galaxies
+    Creation of a secundary galaxy to simulate the merge of two galaxies
+    --Still in progress--
     """
-    #BlackHole in teh center of the secondary galaxy
-    BHM_2 = 1.e6                        # Solar masses
-    center_2 = array([30.0,30.0,0])   # Location of the SBH
-    BHmomentum_2 = array([-5000000,0.,0.])    # Momentum of the SBH
+    #BlackHole in the center of the secondary galaxy
+    BHM_2 = 100000                          # Solar masses
+    center_2 = array([30.0,30.0,0])         # Location of the SBH
+    BHmomentum_2 = array([0,0.,0.])  # Momentum of the SBH
     #Number of bodies
     N_2=100
     #Mass of the N bodies
@@ -292,17 +311,16 @@ def second_galaxy(bodies):
     # Initial radius of the distribution
     ini_radius_2 = 9. #kpc
     #Parameters of the galaxy plane orientation 
-    beta_2=pi/5         #Inclination
+    beta_2=pi/5            #Inclination
     alpha_2=0           #Angle in the plain x,y
-    #masses_2, positions_2, momenta_2 = spiral_galaxy(N_2, max_mass_2, BHM_2, center_2, 
-    #                                                 ini_radius_2,alpha_2,beta_2)
-    #momenta_2=momenta_2+BHmomentum_2
+    masses_2, positions_2, momenta_2 = spiral_galaxy(N_2, max_mass_2, BHM_2, center_2, 
+                                                     ini_radius_2,alpha_2,beta_2)
+    momenta_2=momenta_2+BHmomentum_2
     bodies.append(Node(BHM_2, position=center_2, momentum=BHmomentum_2))
-    #for i in range(N_2):
-     #  bodies.append(Node(masses_2[i], positions_2[i], momenta_2[i]))
+    for i in range(N_2):
+       bodies.append(Node(masses_2[i], positions_2[i], momenta_2[i]))
     return bodies
   
-#def system_init(N, masses, postions, momenta, BHM, center, BHmomentum, ini_radius):
 def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius):
     '''
     This function initialize the N-body system by randomly defining
@@ -320,7 +338,7 @@ def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius):
     masses, positions, momenta = spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta)
     for i in range(N-1):
        bodies.append(Node(masses[i], positions[i], momenta[i]))
-    #bodies=second_galaxy(bodies)
+    bodies=second_galaxy(bodies)
     return bodies
     
 def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', video_name='my_video.mp4'):
@@ -338,8 +356,9 @@ def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', vide
         for body in bodies:
             body.reset_location()
             root = add(body, root)
-        # Evolution using the Verlet method
-        verlet(bodies, root, theta, dt)
+        # Evolution using the integration method
+        #verlet(bodies, root, theta, dt)
+        PEFRL(bodies, root, theta, dt)
         # Write the image files
         if i%img_step==0:
             print("Writing image at time {0}".format(i))
