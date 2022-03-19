@@ -22,7 +22,7 @@ dt = 1.e-3 # Gyr
 theta = 0.3
 
 #Radius on the image
-scale_factor=.025 #---> 0.25/ini_radius
+scale_factor=.05 #---> 0.25/ini_radius
 
 #####################################################################################
 
@@ -171,142 +171,89 @@ def verlet(bodies, root, theta, dt):
         body.force = force_on(body, root, theta)
         body.momentum += body.force*dt
         body.m_pos += scale_factor*body.momentum*dt
-                  
-def uniform_galaxy(N, max_mass, BHM, center, ini_radius):
-    '''
-    Randomly generate the system of N particles.
-    Returns
-    - Masses
-    - Positions
-    - Momentum (Based on a Keplerian velocity)
-    '''
-    # We will generate K=2*N random particles from which we will chose
-    # only N-1 bodies for the system
-    K = 2*N
-    random.seed(2)
-    masses = empty([N-1])
-    positions = empty([N-1,3])
-    momenta = empty([N-1,3])
-    # Random masses between 1 solar mass and max_mass solar masses
-    mass = random.random(K)*(max_mass-1.) + 1.
-    # x-, y- and z- positions are initialized inside a square with
-    # a side of length = 2*ini_radius.
-    posx = random.random(K) *2.*ini_radius-ini_radius
-    posy = random.random(K) *2.*ini_radius-ini_radius
-    posz = zeros(K)
-    i=0
-    j=0
-    #Loop until complete the random N-1 bodies or use the K generated bodies
-    while i<K and j<N-1:
-        position = array([posx[i],posy[i],posz[i]])
-        norm_r = norm(position)
-        if norm_r < ini_radius:
-            masses[j] = mass[i]
-            positions[j] = scale_factor*position+center
-            # We use the projection of the Keplerina velocity to define the momentum
-            Kep_v = sqrt(G*BHM/norm_r) # Keplerian velocity
-            momenta[j] = mass[i]*Kep_v*array([-position[1], position[0], 0.])/norm_r
-            j+=1
-        i+=1
-    return masses, positions, momenta
-
+        
 def func(x,Distribution,Point): 
-    """
+    """------------------------------------------------------------------------
+    func: 
     Equation that follows the point of the wanted distribution that matches the 
     random one of a uniform distribution
-    """
+    ---------------------------------------------------------------------------
+    Arguments:
+       x            : Random variable in the wanted distribution (unkonwn)
+       Distribution : Wanted distribution
+       Point        : Random variable in the uniform distribution
+    ------------------------------------------------------------------------"""
     return integrate.quad(Distribution,0,x)[0]-Point
 
 def spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta):
-    '''
-    Version 1.1:
+    '''-----------------------------------------------------------------------
+    spiral_galaxy:
     Use a radial distrubution of masses proportional to the brightness surface
     distributation to create a plain Bulb and Disk resembling an spiral galaxy
-    Returns
-    - Masses
-    - Positions
-    - Momentum (Based on a Keplerian velocity)
-    '''
-    # We will generate N random particles 
+    --------------------------------------------------------------------------
+    Arguments:
+       N            : Number of particles
+       max_mass     : Biggest mass of the stars in the system 
+       BHM          : Black Hole's mass
+       center       : Black Hole position
+       ini_radius   : Galaxy radius
+       alpha        : Angle in the x,y plane
+       beta         : Inclination
+    ------------------------------------------------------------------------'''
+    N -= 1
+    # Generates N random particles 
     positions = empty([N,3])
     momenta = empty([N,3])
-    # Random masses between 1 solar mass and max_mass solar masses
+    # Random masses varies between 1 solar mass and max_mass solar masses
     masses = random.random(N)*(max_mass-1.) + 1.
-    # r- initializec acording to a distribution, gamma- initialized ramdomly
-    #Parameters of the model of density
+    #Parameters of the model of density of starts
     initial_density=.1
     const_bulb=.3
     const_disc=.8
-    bulb_radius=0.2     #according to the initial radius 
-    bulb_hight=3/20     #according to the initial radius 
+    bulb_radius=0.2
     #Model of density normalized
-    f1 = lambda x: initial_density*exp(-x**(1/4)/const_bulb)        #Bulb
+    f1 = lambda x: initial_density*exp(-x**(1/4)/const_bulb)        #Bulge
     f2 = lambda x: f1(bulb_radius)*exp(-(x-bulb_radius)/const_disc) #Disc
     f = lambda x:  f1(x) if x<bulb_radius else f2(x)                #Piecewise 
     norm = integrate.quad(f,0,1)[0]                                  
     uf=lambda x: f(x)/norm                                          #Density function with integral=1
-    #Uniform distribution to get random points as normal
-    random.seed(413)
-    Uniform=random.random(N)
     #Random angle generation
-    gamma=random.random(N)*2*pi
+    gamma = random.random(N)*2*pi
+    #Random width
+    width = .05*ini_radius                                          #Half of with in relation to the radius of the galaxy
+    gross  = random.random(N)*2*width-width
+    temp = beta
+    #Uniform distribution to get random points
+    Uniform = random.random(N)
     #Empty array for the points mapped from the uniform distribution
-    Map=empty(N)
-    #Noise in the perpendicular direction in order to create the bulb and the width of the disc
-    random.seed(1)
-    w_noise=(random.random(N)*2-1) 
-    width_disc=1/20*ini_radius
-    Rad=empty(N)
-    phi=empty(N)
-    a=(bulb_radius**2)/(1-(bulb_hight/width_disc)**2)*ini_radius**2
+    Map=zeros(N)   
     for i in range(N):
         #Calls the function that maps the ramdom points to the wanted distribution for the radius 
-        Map[i]=fsolve(func,.5,args=(uf,Uniform[i]))*ini_radius
-        if Map[i]<0:
-            Map[i]=ini_radius*Uniform[i]
-        #Correction of the radius and angle according to the width of the disc
-        if Map[i]>0.2*ini_radius:
-            Width=w_noise[i]*width_disc
-        else:
-            Width=w_noise[i]*bulb_hight*sqrt(1-(Rad[i]**2)/a)
-        Rad[i]=sqrt(Map[i]**2+Width**2)
-        phi[i]=arctan(Width/Map[i])
+        Map[i]=fsolve(func,0,args=(uf,Uniform[i]))*ini_radius
+        #Creates an elipsoid in the region of the bulge
+        if Map[i] < bulb_radius*ini_radius:
+            a = 0.18*ini_radius
+            bulg_countour = a*sqrt(1-(Map[i]/(bulb_radius*ini_radius))**2)
+            gross[i] = random.random(1)*2*bulg_countour-bulg_countour
+        #Adjustment for width
+        beta += arctan(gross[i]/Map[i])
+        Map[i] = sqrt(Map[i]**2+gross[i]**2)
         #Change to cartesian coordinates
-        positions[i][0] = Rad[i]*(cos(gamma[i])*cos(alpha)+
-                                  sin(gamma[i])*cos(beta+phi[i])*sin(alpha)) + center[0]
-        positions[i][1] = Rad[i]*(sin(gamma[i])*cos(beta+phi[i])*cos(alpha)-
-                                  cos(gamma[i])*sin(alpha))+ center[1]
-        positions[i][2] = Rad[i]*sin(gamma[i])*sin(beta+phi[i]) + center[2]
-        # We use the Keplerina velocity to define the momentum in the plain of the disc 
-        Kep_v = sqrt(G*BHM/Map[i]) # Keplerian velocity
-        vec_mom=array([-Map[i]*(sin(gamma[i])*cos(alpha)-cos(gamma[i])*cos(beta)*sin(alpha)),
+        positions[i][0] = scale_factor*Map[i]*(cos(gamma[i])*cos(alpha)+
+                                   sin(gamma[i])*cos(beta)*sin(alpha)) + center[0]
+        positions[i][1] = scale_factor*Map[i]*(sin(gamma[i])*cos(beta)*cos(alpha)-
+                                   cos(gamma[i])*sin(alpha))+ center[1]
+        positions[i][2] = scale_factor*Map[i]*sin(gamma[i])*sin(beta) + center[2]
+        # Keplerina velocity in the plain of the disc 
+        Kep_v = sqrt(G*BHM/Map[i])
+        vec_vel=array([-Map[i]*(sin(gamma[i])*cos(alpha)-cos(gamma[i])*cos(beta)*sin(alpha)),
                        Map[i]*(cos(gamma[i])*cos(beta)*cos(alpha)+sin(gamma[i])*sin(alpha)), 
-                       Map[i]*cos(gamma[i])*sin(beta)])/Map[i]  #unit vector for direction
-        momenta[i] = masses[i]*Kep_v*vec_mom
+                       Map[i]*cos(gamma[i])*sin(beta)])/Map[i]
+        momenta[i][0] = masses[i]*Kep_v*vec_vel[0]
+        momenta[i][1] = masses[i]*Kep_v*vec_vel[1]
+        momenta[i][2] = masses[i]*Kep_v*vec_vel[2]
+        beta = temp
     return masses, positions, momenta
-
-def second_galaxy(bodies,ini_radius):
-    """
-    Creation of a secundary galaxy to simulate the merge of two galaxies
-    """
-    #BlackHole in the center of the secondary galaxy
-    BHM_2 = 1.e5                            # Solar masses
-    center_2 = array([.8,.8,0])         # Location of the SBH
-    BHmomentum_2 = array([-BHM_2*.1,0,0.])  # Momentum of the SBH
-    #Number of bodies
-    N_2=30
-    #Mass of the N bodies
-    max_mass_2= 50.                     # Solar masses
-    # Initial radius of the distribution
-    ini_radius_2 = .5*ini_radius        #kpc
-    masses_2, positions_2, momenta_2 = uniform_galaxy(N_2, max_mass_2, BHM_2, center_2, 
-                                                     ini_radius_2)
-    bodies.append(Node(BHM_2, position=center_2, momentum=BHmomentum_2))
-  
-    for i in range(len(masses_2)-1):
-        momenta_2[i]=momenta_2[i]+BHmomentum_2/BHM_2*masses_2[i]
-        bodies.append(Node(masses_2[i], positions_2[i], momenta_2[i]))
-    return bodies
 
 def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius, alpha, beta):
     '''
@@ -315,13 +262,11 @@ def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius, alpha, beta):
     objects of the Node class
     '''
     bodies = []
-    bodies.append(Node(BHM, position=center, momentum=BHmomentum))
-        
-    masses, positions, momenta = uniform_galaxy(N, max_mass, BHM, center, ini_radius)
-    #masses, positions, momenta = spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta)
+    bodies.append(Node(BHM, position=center, momentum=BHmomentum))   
+    #masses, positions, momenta = uniform_galaxy(N, max_mass, BHM, center, ini_radius)
+    masses, positions, momenta = spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta)
     for i in range(N-1):
-       bodies.append(Node(masses[i], positions[i], momenta[i])) 
-    bodies=second_galaxy(bodies, ini_radius)
+       bodies.append(Node(masses[i], positions[i], momenta[i]))
     return bodies
 
 def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', video_name='my_video.mp4'):
@@ -362,20 +307,13 @@ def plot_bodies(bodies, i, image_folder='images/'):
     ax.xaxis.pane.set_edgecolor('dimgray')
     ax.yaxis.pane.set_edgecolor('dimgray')
     ax.zaxis.pane.set_edgecolor('dimgray')
-    ax.view_init(90, -90)
-    #ax.xaxis.label.set_color('dimgray')
-    #ax.yaxis.label.set_color('dimgray')
-    #ax.zaxis.label.set_color('dimgray')
-    #ax.set_xlabel('x')
-    #ax.set_ylabel('y')
-    #ax.set_zlabel('z')
-    #ax.grid(False)
+    #ax.view_init(90, -90)
     for body in bodies:
         pos = body.position()
         if body.m>100.:
             ax.scatter(pos[0], pos[1], pos[2], marker='.', color='lightcyan')
         else:
-            ax.scatter(pos[0], pos[1], pos[2], marker='.', color='red')
+            ax.scatter(pos[0], pos[1], pos[2], marker='.', color='darkorchid')
     print(" ")
     plt.gcf().savefig(image_folder+'bodies3D_{0:06}.png'.format(i))
     plt.close()
@@ -385,8 +323,6 @@ def create_video(image_folder='images/', video_name='my_video.mp4'):
     Creates a .mp4 video using the stored files images
     '''
     from os import listdir
-    #from os import environ
-    #environ["IMAGEIO_FFMPEG_EXE"] = "/Users/beyonder88/Downloads/ffmpeg"
     import moviepy.video.io.ImageSequenceClip
     fps = 15
     image_files = [image_folder+img for img in sorted(listdir(image_folder)) if img.endswith(".png")]
