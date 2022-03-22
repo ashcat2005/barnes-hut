@@ -22,59 +22,60 @@ dt = 1.e-3 # Gyr
 theta = 0.3
 
 #Radius on the image
-scale_factor=.05 #---> 0.25/ini_radius
+scale_factor=.05 
 
 #####################################################################################
 
 class Node:
-    '''
+    '''---------------------------------------------------------------------
     A node object will represent a body (if node.child is None)
     or an abstract node of the octant-tree if it has node.child attributes.
-    '''
+    ----------------------------------------------------------------------'''
     def __init__(self, m, position, momentum):
-        '''
+        '''-------------------------------------------------------
         Creates a child-less node using the arguments
-        .mass : scalar
+        ----------------------------------------------------------
+        .mass     : scalar
         .position : NumPy array  with the coordinates [x,y,z]
         .momentum : NumPy array  with the components [px,py,pz]
-        '''
+        -------------------------------------------------------'''
         self.m = m
-        self.m_pos = m * position
+        self.m_pos = m * position #Mass times position. Usefull in calculating center of mass
         self.momentum = momentum
         self.child = None
-        self.force = None
+        self.force = None         #Force on the node    
     
     def position(self):
-        '''
+        '''------------------------------------------
         Returns the physical coordinates of the node.
-        '''
+        -------------------------------------------'''
         return self.m_pos / self.m
         
     def reset_location(self):
-        '''
+        '''-----------------------------------------------------
         Resets the position of the node to the 0th-order octant.
         The size of the octant is reset to the value 1.0
-        '''
+        ------------------------------------------------------'''
         self.size = 1.0
         # The relative position inside the 0th-order octant is equal
-        # to the current physical position.
+        # to the current physical position
         self.relative_position = self.position().copy()
         
     def place_into_octant(self):
-        '''
+        '''-------------------------------------------------------------
         Places the node into next order octant.
         Returns the octant number according to the labels defined in the
         documentation.
-        '''
+        --------------------------------------------------------------'''
         # The next order octant will have half the size of the current octant
         self.size = 0.5 * self.size
         return self.subdivide(2) + 2*self.subdivide(1) + 4*self.subdivide(0)
 
     def subdivide(self, i):
-        '''
+        '''-------------------------------------------------------------------
         Places the node node into the next order octant along the direction i
         and recalculates the relative_position of the node inside this octant.
-        '''
+        --------------------------------------------------------------------'''
         self.relative_position[i] *= 2.0
         if self.relative_position[i] < 1.0:
             octant = 0
@@ -84,11 +85,11 @@ class Node:
         return octant
 
 def add(body, node):
-    '''
+    '''------------------------------------------------------------
     Defines the octo-tree by introducing a body and locating it
     according to three conditions (see documentation for details).
     Returns the updated node containing the body.
-    '''
+    ------------------------------------------------------------'''
     smallest_quadrant = 1.e-4 # Lower limit for the size of the octants
     # Case 1. If node does not contain a body, the body is put in here
     new_node = body if node is None else None
@@ -106,7 +107,6 @@ def add(body, node):
         # Case 2. If node is an internal node, it already has .child attribute
         else:
             new_node = node
-
         # For cases 2 and 3, it is needed to update the mass and the position
         # of the node
         new_node.m += body.m
@@ -117,39 +117,31 @@ def add(body, node):
     return new_node
 
 def distance_between(node1, node2):
-    '''
+    '''------------------------------------------
     Returns the distance between node1 and node2.
-    '''
-    #print(node1.position())
-    #print(node2.position())
-    #print(norm(node1.position() - node2.position()))
-    #print("")
+    ------------------------------------------'''
     return norm(node1.position() - node2.position())/scale_factor
 
 def gravitational_force(node1, node2):
-    '''
+    '''--------------------------------------------------------------
     Returns the gravitational force that node1 exerts on node2.
     A short distance cutoff is introduced in order to avoid numerical
     divergences in the gravitational force.
-    '''
+    ---------------------------------------------------------------'''
     cutoff_dist = 2.e-4
     d = distance_between(node1, node2)
     if d < cutoff_dist:
-        #print('Collision!')
-        #Returns no Force!
         return array([0., 0., 0.])
-        
     else:
-        # Gravitational force
         return G*node1.m*node2.m*(node1.position() - node2.position())/d**3/scale_factor
     
 def force_on(body, node, theta):
-    '''
+    '''-----------------------------------------------------------------------
     # Barnes-Hut algorithm: usage of the quad-tree. This function computes
     # the net force on a body exerted by all bodies in node "node".
     # Note how the code is shorter and more expressive than the human-language
     # description of the algorithm.
-    '''
+    ------------------------------------------------------------------------'''
     # 1. If the current node is an external node,
     #    calculate the force exerted by the current node on b.
     if node.child is None:
@@ -163,10 +155,10 @@ def force_on(body, node, theta):
     # 3. Otherwise, run the procedure recursively on each child.
     return sum(force_on(body, c, theta) for c in node.child if c is not None)
 
-def verlet(bodies, root, theta, dt):
-    '''
-    Verlet method for time evolution.
-    '''
+def step(bodies, root, theta, dt):
+    '''-----------------------------
+    Euler method for time evolution.
+    ------------------------------'''
     for body in bodies:
         body.force = force_on(body, root, theta)
         body.momentum += body.force*dt
@@ -174,11 +166,9 @@ def verlet(bodies, root, theta, dt):
         
 def func(x,Distribution,Point): 
     """------------------------------------------------------------------------
-    func: 
     Equation that follows the point of the wanted distribution that matches the 
     random one of a uniform distribution
     ---------------------------------------------------------------------------
-    Arguments:
        x            : Random variable in the wanted distribution (unkonwn)
        Distribution : Wanted distribution
        Point        : Random variable in the uniform distribution
@@ -187,11 +177,9 @@ def func(x,Distribution,Point):
 
 def spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta):
     '''-----------------------------------------------------------------------
-    spiral_galaxy:
     Use a radial distrubution of masses proportional to the brightness surface
     distributation to create a plain Bulb and Disk resembling an spiral galaxy
     --------------------------------------------------------------------------
-    Arguments:
        N            : Number of particles
        max_mass     : Biggest mass of the stars in the system 
        BHM          : Black Hole's mass
@@ -256,23 +244,23 @@ def spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta):
     return masses, positions, momenta
 
 def system_init(N, max_mass, BHM, center, BHmomentum, ini_radius, alpha, beta):
-    '''
-    This function initialize the N-body system by randomly defining
-    the position vectors fo the bodies and creating the corresponding
-    objects of the Node class
-    '''
+    '''-------------------------------------------------------------------
+    Initializes the N-body system by defining the position and momentum
+    of the bodies and creating the corresponding objects of the Node class
+    --------------------------------------------------------------------'''
+    #Defines initial conditions
     bodies = []
     bodies.append(Node(BHM, position=center, momentum=BHmomentum))   
-    #masses, positions, momenta = uniform_galaxy(N, max_mass, BHM, center, ini_radius)
     masses, positions, momenta = spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta)
+    #Creates nodes
     for i in range(N-1):
        bodies.append(Node(masses[i], positions[i], momenta[i]))
     return bodies
 
 def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', video_name='my_video.mp4'):
-    '''
-    This function evolves the system in time using the Verlet algorithm and the Barnes-Hut octo-tree
-    '''
+    '''---------------------------------------------------------------------------------------------
+    This function evolves the system in time using the Euler algorithm and the Barnes-Hut octo-tree
+    ----------------------------------------------------------------------------------------------'''
     # Principal loop over time iterations.
     for i in range(n+1):
         # The octo-tree is recomputed at each iteration.
@@ -281,25 +269,22 @@ def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', vide
             body.reset_location()
             root = add(body, root) 
         # Evolution using the integration method
-        verlet(bodies, root, theta, dt)
+        step(bodies, root, theta, dt)
         # Write the image files
         if i%img_step==0:
             print("Writing image at time {0}".format(i))
             plot_bodies(bodies, i//img_step,image_folder)
 
 def plot_bodies(bodies, i, image_folder='images/'):
-    '''
+    '''---------------------------------------------------------
     Writes an image file with the current position of the bodies
-    '''
+    ---------------------------------------------------------'''
     plt.rcParams['grid.color'] = 'dimgray'
-    #plt.rcParams['axes.edgecolor'] = 'dimgray'
-    #plt.rcParams['axes.labelcolor'] = 'dimgray'
     fig = plt.figure(figsize=(10,10), facecolor='black')
     ax = plt.gcf().add_subplot(111, projection='3d')
     ax.set_xlim([0,1])
     ax.set_ylim([0,1])
     ax.set_zlim([0,1])
-    #ax.set_proj_type('ortho')
     ax.set_facecolor('black')
     ax.xaxis.pane.fill = False
     ax.yaxis.pane.fill = False
@@ -319,28 +304,12 @@ def plot_bodies(bodies, i, image_folder='images/'):
     plt.close()
 
 def create_video(image_folder='images/', video_name='my_video.mp4'):
-    '''
+    '''-----------------------------------------------
     Creates a .mp4 video using the stored files images
-    '''
+    -----------------------------------------------'''
     from os import listdir
     import moviepy.video.io.ImageSequenceClip
     fps = 15
     image_files = [image_folder+img for img in sorted(listdir(image_folder)) if img.endswith(".png")]
     clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
-    clip.write_videofile(video_name)
-
-def create_avi_video(image_folder='images/', video_name = 'video.avi'):
-    '''
-    Creates a .avi video using the stored files images
-    '''
-    import cv2
-    from os import listdir
-    from os.path import join
-    images = [img for img in listdir(image_folder) if img.endswith(".png")]
-    frame = cv2.imread(join(image_folder, images[0]))
-    height, width, layers = frame.shape
-    video = cv2.VideoWriter(video_name, 0, 1, (width,height))
-    for image in images:
-        video.write(cv2.imread(join(image_folder, image)))
-    cv2.destroyAllWindows()
-    video.release()    
+    clip.write_videofile(video_name) 
