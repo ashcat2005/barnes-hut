@@ -21,10 +21,10 @@ alpha=.1     #Angle in the plain x,y
 ini_radius = 10 #kpc
 
 # Number of time-iterations executed by the program.
-n = 30000
+n = 2550
 
 # Frequency at which .PNG images are written.
-img_step = 250
+img_step = 25
 
 # Folder to save the images
 image_folder = 'images/'

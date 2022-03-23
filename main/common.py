@@ -16,7 +16,7 @@ from mpl_toolkits.mplot3d import Axes3D
 G = 4.4985022e-6
 
 # Discrete time step.
-dt = 1.e-3 # Gyr
+dt = 1.e-2 # Gyr
 
 # Theta-criterion of the Barnes-Hut algorithm.
 theta = 0.3
@@ -117,10 +117,10 @@ def add(body, node):
     return new_node
 
 def distance_between(node1, node2):
-    '''------------------------------------------
-    Returns the distance between node1 and node2.
-    ------------------------------------------'''
-    return norm(node1.position() - node2.position())/scale_factor
+    '''--------------------------------------------------------
+    Returns the distance between node1 and node2. (Scaled down)
+    ---------------------------------------------------------'''
+    return norm(node1.position() - node2.position())
 
 def gravitational_force(node1, node2):
     '''--------------------------------------------------------------
@@ -133,7 +133,7 @@ def gravitational_force(node1, node2):
     if d < cutoff_dist:
         return array([0., 0., 0.])
     else:
-        return G*node1.m*node2.m*(node1.position() - node2.position())/d**3/scale_factor
+        return G*node1.m*node2.m*(node1.position() - node2.position())/d**3*scale_factor**2
     
 def force_on(body, node, theta):
     '''-----------------------------------------------------------------------
@@ -149,7 +149,7 @@ def force_on(body, node, theta):
 
     # 2. Otherwise, calculate the ratio s/d. If s/d < θ, treat this internal
     #    node as a single body, and calculate the force it exerts on body b.
-    if node.size < scale_factor*distance_between(node,body)*theta:#node.distance(body) * theta:
+    if node.size < distance_between(node,body)*theta:#node.distance(body) * theta:
         return gravitational_force(node,body)#node.force_on(body)
         
     # 3. Otherwise, run the procedure recursively on each child.
@@ -163,6 +163,24 @@ def step(bodies, root, theta, dt):
         body.force = force_on(body, root, theta)
         body.momentum += body.force*dt
         body.m_pos += scale_factor*body.momentum*dt
+
+def PEFRL(bodies, root, theta, dt):
+    '''-----------------------------
+    PEFRL method for time evolution.
+    ------------------------------'''
+    epsilon=0.1786178958448091
+    lannnda=-0.2123418310626054
+    xsi=-0.06626458266981849
+    for body in bodies:
+        body.m_pos += epsilon*body.momentum*dt*scale_factor
+        body.momentum += .5*(1-2*lannnda)*dt*force_on(body, root, theta)
+        body.m_pos += xsi*body.momentum*dt*scale_factor
+        body.momentum += lannnda*dt*force_on(body, root, theta)
+        body.m_pos += (1-2*(xsi*epsilon))*body.momentum*dt*scale_factor
+        body.momentum += lannnda*dt*force_on(body, root, theta)
+        body.m_pos += xsi*body.momentum*dt*scale_factor
+        body.momentum += .5*(1-2*lannnda)*dt*force_on(body, root, theta)
+        body.m_pos += epsilon*body.momentum*dt*scale_factor
         
 def func(x,Distribution,Point): 
     """------------------------------------------------------------------------
@@ -189,6 +207,7 @@ def spiral_galaxy(N, max_mass, BHM, center, ini_radius, alpha, beta):
        beta         : Inclination
     ------------------------------------------------------------------------'''
     N -= 1
+    random.seed(10)
     # Generates N random particles 
     positions = empty([N,3])
     momenta = empty([N,3])
@@ -270,6 +289,7 @@ def evolve(bodies, n, center, ini_radius, img_step, image_folder='images/', vide
             root = add(body, root) 
         # Evolution using the integration method
         step(bodies, root, theta, dt)
+        #PEFRL(bodies, root, theta, dt)
         # Write the image files
         if i%img_step==0:
             print("Writing image at time {0}".format(i))
